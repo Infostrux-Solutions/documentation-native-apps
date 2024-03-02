@@ -73,7 +73,7 @@ Please adjust the script by replacing the string `<application name>` so that th
 
 The application must be granted enough privileges to execute the `source_table_expression`. For example, if the `source_table_expression` references a table, the application must be granted `USAGE` privilege on the database and schema that contains the table and `SELECT` privilege on the table itself. See the examples below.
 
-# Example - Application's Sample Data
+# Example
 
 The native app provides table `sample_extract` in `execution` schema that holds the sample raw extracted data shown above. Run the following script to use it:
 
@@ -81,17 +81,20 @@ The native app provides table `sample_extract` in `execution` schema that holds 
 use database identifier($application_name);
 use schema execution;
 
--- verify that the sample data is available
+-- Verify that the sample data is available.
+-- Note the trailing new lines in the CONTENT column.
+-- These are necessary as the application allows multiple table records per message.
+-- The new lines delimit the messages.
 select *, try_parse_json(content)
 from sample_extract;
 
--- invoke the loader on sample data
+-- Invoke the loader on sample data.
 call load(
    'load_test',
    'app_example',
    'sample_extract');
 
--- verify that the sample extract was correctly loaded
+-- Verify that the sample extract was correctly loaded.
 
 -- two records with id and name
 select * from load_test.app_example.person;
@@ -99,62 +102,6 @@ select * from load_test.app_example.person;
 -- a single record with id and no other columns
 select * from load_test.app_example.location;
 
-```
-
-# Example - Separate Database
-
-The example below shows how to create a sample table and how to grant the required privileges on the sample table to the application:
-
-```SQL
-
--- create a sample database, schema and temporary table
-create database if not exists extract_example;
-create schema if not exists extract_example.operations;
-create or replace temporary table extract_example.operations.directory (
-  index int,
-  content varchar
-);
-
-insert into extract_example.operations.directory (index, content)
-values
-( 1, '{"type": "SCHEMA", "stream": "person", "key_properties": ["id"], "schema": {"required": ["id"], "type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}}}
-'),
-( 2, '{"type": "RECORD", "stream": "person", "record": {"id": 1, "name": "Chris"}}
-'),
-( 3, '{"type": "RECORD", "stream": "person", "record": {"id": 2, "name": "Mike"}}
-'),
-( 4, '{"type": "SCHEMA", "stream": "location", "key_properties": ["id"], "schema": {"required": ["id"], "type": "object", "properties": {"id": {"type": "integer"}}}}
-'),
-( 5, '{"type": "RECORD", "stream": "location", "record": {"id": 1, "name": "Philadelphia"}}
-'),
-( 5, '{"type": "STATE", "value": {"person": 2, "location": 1}}
-');
-
--- verify that the sample data is properly created
-select *, try_parse_json(content) from  extract_example.operations.directory;
-
--- grant the privileges
-grant usage on database extract_example to application identifier($application_name);
-grant usage on schema extract_example.operations to application identifier($application_name);
-grant select on table extract_example.operations.directory to application identifier($application_name);
-```
-
-Please note the new lines in the string literals. These are necessary as the application allows multiple table records per message. The new lines delimit the messages.
-
-The application can be invoked by calling the stored procedure:
-
-```SQL
-use database identifier($application_name);
-use schema execution;
-
-call load(
-  'load_test',
-  'operations',
-  'extract_example.operations.directory');
-
--- verify the load
-select * from load_test.operations.person;
-select * from load_test.operations.location;
 ```
 
 # Notes
